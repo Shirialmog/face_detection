@@ -7,11 +7,11 @@ import torch.nn as nn
 import numpy as np
 import torch.nn.functional as F
 from tqdm import tqdm
-
-
-
+from torch.utils.tensorboard import SummaryWriter
+import torchmetrics
 
 def train_vgg(epochs):
+    writer = SummaryWriter()
     train_dataset, test_dataset = get_datasets()
     train_dataloader = DataLoader(train_dataset, batch_size=8, shuffle=True)
     test_dataloader = DataLoader(test_dataset, batch_size=8, shuffle=False)
@@ -19,13 +19,16 @@ def train_vgg(epochs):
     criterion = nn.CrossEntropyLoss()
     optimizer = optim.SGD(model.parameters(), lr=0.001, momentum=0.9)
 
+    acc=torchmetrics.Accuracy()
     for epoch in tqdm(range(epochs)):  # loop over the dataset multiple times
         model.train()
-        running_loss = 0.0
-        train_acc =0
+        running_loss = 0
         for i, data in enumerate(train_dataloader, 0):
             # get the inputs; data is a list of [inputs, labels]
-
+            if i==10:
+                train_acc = acc.compute()
+                writer.add_scalar('Accuracy/train', train_acc, i)
+                print(f"acc: {train_acc}")
             inputs, labels = data
 
             # zero the parameter gradients
@@ -35,6 +38,8 @@ def train_vgg(epochs):
             outputs = model(inputs.float())
             #probabilities = torch.nn.functional.softmax(outputs, dim=-1)
             thresh_probabilities = torch.argmax(outputs, dim= 1)
+            train_acc = acc(thresh_probabilities, labels)
+
             loss = criterion(outputs, labels)
             loss.backward()
             optimizer.step()
@@ -46,10 +51,10 @@ def train_vgg(epochs):
                 print(f'[epoch: {epoch + 1}/{epochs},step: {i + 1:5d}/{len(train_dataloader)}] loss: {running_loss / 2000:.3f}')
                 running_loss = 0.0
 
-            batch_acc = torch.sum(thresh_probabilities == labels)/len(inputs)
-            train_acc += batch_acc
-        train_acc = train_acc/len(train_dataloader)
-        print (f'acc epoch {epoch}: {train_acc}')
+        #     batch_acc = torch.sum(thresh_probabilities == labels)/len(inputs)
+        #     train_acc += batch_acc
+        # train_acc = train_acc/len(train_dataloader)
+        # print (f'acc epoch {epoch}: {train_acc}')
 
         model.eval()
         running_val_loss = 0

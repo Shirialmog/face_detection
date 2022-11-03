@@ -65,8 +65,8 @@ composed_transforms = transforms.Compose([Rescale((64,64))])
 
 def get_datasets():
     ROOT = r'C:\Users\shiri\Documents\Galit\Data\VGG-Face2\data_small'
-    train_dataset = torchvision.datasets.DatasetFolder(root =  r'C:\Users\shiri\Documents\Galit\Data\VGG-Face2\data_small\train', loader = torchvision.io.read_image, extensions =  ['jpg'],transform= composed_transforms)
-    test_dataset = torchvision.datasets.DatasetFolder(root = r'C:\Users\shiri\Documents\Galit\Data\VGG-Face2\data\test\small_test', loader = torchvision.io.read_image, extensions =  ['jpg'], transform= composed_transforms )
+    train_dataset = torchvision.datasets.DatasetFolder(root =  r'C:\Users\shiri\Documents\School\Galit\Data\VGG-Face2\data_small\train', loader = torchvision.io.read_image, extensions =  ['jpg'],transform= composed_transforms)
+    test_dataset = torchvision.datasets.DatasetFolder(root = r'C:\Users\shiri\Documents\School\Galit\Data\VGG-Face2\data\test\small_test', loader = torchvision.io.read_image, extensions =  ['jpg'], transform= composed_transforms )
     return train_dataset , test_dataset
 
 # def get_datasets():
