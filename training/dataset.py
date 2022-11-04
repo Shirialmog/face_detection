@@ -3,14 +3,16 @@ import torch
 import torchvision.datasets
 from skimage import io, transform
 import numpy as np
-
+import pandas as pd
 from torch.utils.data import Dataset
 from torchvision import datasets, transforms
 
 from torchvision.transforms import ToTensor
 import matplotlib.pyplot as plt
+from facenet_pytorch import MTCNN
+from PIL import Image
 
-
+mtcnn = MTCNN()
 
 
 
@@ -59,25 +61,58 @@ class Rescale(object):
 #         return {'image': torch.from_numpy(image),
 #                 'labels': torch.from_numpy(labels)}
 
-composed_transforms = transforms.Compose([Rescale((64,64))])
+composed_transforms = transforms.Compose([Rescale((224,224))])
 
 
+class VGGDataset(Dataset):
+    """Face Landmarks dataset."""
 
-def get_datasets():
-    ROOT = r'C:\Users\shiri\Documents\Galit\Data\VGG-Face2\data_small'
-    train_dataset = torchvision.datasets.DatasetFolder(root =  r'C:\Users\shiri\Documents\School\Galit\Data\VGG-Face2\data_small\train', loader = torchvision.io.read_image, extensions =  ['jpg'],transform= composed_transforms)
-    test_dataset = torchvision.datasets.DatasetFolder(root = r'C:\Users\shiri\Documents\School\Galit\Data\VGG-Face2\data\test\small_test', loader = torchvision.io.read_image, extensions =  ['jpg'], transform= composed_transforms )
-    return train_dataset , test_dataset
+    def __init__(self, df, root_dir, transform=None):
+        """
+        Args:
+            csv_file (string): Path to the current exp csv file.
+            root_dir (string): Directory with all the images.
+            transform (callable, optional): Optional transform to be applied
+                on a sample.
+        """
+        self.df = df.reset_index()
+        self.root_dir = root_dir
+        self.transform = transform
 
-# def get_datasets():
-    #ROOT = r'C:\Users\shiri\Documents\Galit\Data\LFW'
-#     training_dataset = datasets.LFWPeople(root=ROOT, transform=ToTensor(), split= 'train')
-#     val_dataset = datasets.LFWPeople(root = ROOT, transform=ToTensor(),split = 'test')
-#     return training_dataset, val_dataset
+    def __len__(self):
+        return len(self.df)
+
+    def __getitem__(self, idx):
+        if torch.is_tensor(idx):
+            idx = idx.tolist()
+
+        img_name = self.df.loc[idx, 'image_path']
+        #image = torchvision.io.read_image(img_name)
+        image = Image.open(img_name)
+        try:
+            image = mtcnn(image)
+        except:
+            print (img_name)
+        if self.transform:
+            image = composed_transforms(image)
+        img_class = self.df.loc[idx, 'class']
+        sample = {'image': image, 'img_class':img_class}
+
+        return sample
+
+def get_datasets(root_dir, df_path):
+    df=pd.read_csv(df_path)
+    train_dir = f'{root_dir}/train'
+    train_dataset = VGGDataset(df[df['set']=='train'], train_dir, True)
+    val_dataset = VGGDataset(df[df['set']=='val'], train_dir, True)
+
+    return train_dataset , val_dataset
+
+
 
 
 
 def loader(path):
     img = torchvision.io.read_image(path)
-    img = img.resize((256,256))
+    #img = img.resize((256,256))
     return img
