@@ -1,83 +1,23 @@
-import os
+import pandas as pd
+from PIL import Image
 import torch
 import torchvision.datasets
-from skimage import io, transform
-import numpy as np
-import pandas as pd
 from torch.utils.data import Dataset
-from torchvision import datasets, transforms
-
-from torchvision.transforms import ToTensor
-import matplotlib.pyplot as plt
+from torchvision import transforms
 from facenet_pytorch import MTCNN
-from PIL import Image
 
-mtcnn = MTCNN()
-
-
-
-class Rescale(object):
-    """Rescale the image in a sample to a given size.
-
-    Args:
-        output_size (tuple or int): Desired output size. If tuple, output is
-            matched to output_size. If int, smaller of image edges is matched
-            to output_size keeping aspect ratio the same.
-    """
-
-    def __init__(self, output_size):
-        assert isinstance(output_size, (int, tuple))
-        self.output_size = output_size
-
-    def __call__(self, sample):
-        h, w = sample.shape[1:]
-        if isinstance(self.output_size, int):
-            if h > w:
-                new_h, new_w = self.output_size * h / w, self.output_size
-            else:
-                new_h, new_w = self.output_size, self.output_size * w / h
-        else:
-            new_h, new_w = self.output_size
-
-        new_h, new_w = int(new_h), int(new_w)
-
-        img = transform.resize(sample, (float(3),new_h, new_w))
-
-        img = torch.from_numpy(img)
-        img.type(torch.DoubleTensor)
-        return img
-
-
-# class ToTensor(object):
-#     """Convert ndarrays in sample to Tensors."""
-#
-#     def __call__(self, sample):
-#         image, labels = sample[0], sample[1]
-#
-#         # swap color axis because
-#         # numpy image: H x W x C
-#         # torch image: C x H x W
-#         image = image.transpose((2, 0, 1))
-#         return {'image': torch.from_numpy(image),
-#                 'labels': torch.from_numpy(labels)}
-
-composed_transforms = transforms.Compose([Rescale((224,224))])
+from face_detection.training.dataset_utils import Rescale
+device = 'cuda' if torch.cuda.is_available() else 'cpu'
+mtcnn = MTCNN(device=device)
 
 
 class VGGDataset(Dataset):
-    """Face Landmarks dataset."""
 
-    def __init__(self, df, root_dir, transform=None):
-        """
-        Args:
-            csv_file (string): Path to the current exp csv file.
-            root_dir (string): Directory with all the images.
-            transform (callable, optional): Optional transform to be applied
-                on a sample.
-        """
+    def __init__(self, df, apply_mtcnn = False, align_data = False, rescale_size = (160,160)):
         self.df = df.reset_index()
-        self.root_dir = root_dir
-        self.transform = transform
+        self.apply_mtcnn = apply_mtcnn
+        self.align_data = align_data
+        self.rescale_size = rescale_size
 
     def __len__(self):
         return len(self.df)
@@ -87,32 +27,48 @@ class VGGDataset(Dataset):
             idx = idx.tolist()
 
         img_name = self.df.loc[idx, 'image_path']
-        #image = torchvision.io.read_image(img_name)
-        image = Image.open(img_name)
-        try:
-            image = mtcnn(image)
-        except:
-            print (img_name)
-        if self.transform:
-            image = composed_transforms(image)
+
+        if not self.apply_mtcnn:
+            image = torchvision.io.read_image(img_name)
+
+        else:
+            image = Image.open(img_name)
+            try:
+                image = mtcnn(image)
+                #boxes, probs, landmarks = mtcnn.detect(image, landmarks=True)
+            except:
+                print (img_name)
+
+        normalize = transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225])
+        composed_transforms = transforms.Compose([Rescale(self.rescale_size), normalize])
+        image = composed_transforms(image)
         img_class = self.df.loc[idx, 'class']
         sample = {'image': image, 'img_class':img_class}
-
         return sample
 
-def get_datasets(root_dir, df_path):
+
+class TestDataset(Dataset):
+    def __init__(self, df_path, rescale_size = (160,160)):
+        self.df =pd.read_csv(df_path).reset_index()
+        self.rescale_size = rescale_size
+    def __len__(self):
+        return len(self.df)
+
+    def __getitem__(self, idx):
+        if torch.is_tensor(idx):
+            idx = idx.tolist()
+
+        normalize = transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225])
+        composed_transforms = transforms.Compose([Rescale(self.rescale_size), normalize])
+        image1 = composed_transforms(torchvision.io.read_image(self.df.loc[idx, '1']))
+        image2 = composed_transforms(torchvision.io.read_image(self.df.loc[idx, '2']))
+        sample = {'image1': image1, 'image2': image2, 'label': self.df.loc[idx, 'label']}
+        return sample
+
+
+def get_datasets(df_path, config):
     df=pd.read_csv(df_path)
-    train_dir = f'{root_dir}/train'
-    train_dataset = VGGDataset(df[df['set']=='train'], train_dir, True)
-    val_dataset = VGGDataset(df[df['set']=='val'], train_dir, True)
+    train_dataset = VGGDataset(df[df['set']=='train'], apply_mtcnn=config.apply_mtcnn, align_data=config.align_data)
+    val_dataset = VGGDataset(df[df['set']=='val'], apply_mtcnn=config.apply_mtcnn, align_data=config.align_data)
 
     return train_dataset , val_dataset
-
-
-
-
-
-def loader(path):
-    img = torchvision.io.read_image(path)
-    #img = img.resize((256,256))
-    return img
