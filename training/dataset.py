@@ -6,7 +6,7 @@ from torch.utils.data import Dataset
 from torchvision import transforms
 from facenet_pytorch import MTCNN
 
-from face_detection.training.dataset_utils import Rescale
+from training.dataset_utils import Rescale
 device = 'cuda' if torch.cuda.is_available() else 'cpu'
 mtcnn = MTCNN(device=device)
 
