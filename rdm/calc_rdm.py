@@ -7,6 +7,7 @@ import matplotlib.pyplot as plt
 import torch
 from facenet_pytorch import MTCNN, InceptionResnetV1
 from torchsummary import summary
+from argparse import ArgumentParser
 
 cos = torch.nn.CosineSimilarity()
 mtcnn = MTCNN(image_size=224)
@@ -57,9 +58,11 @@ def get_rdm(dataset_paths_list, model):
 
 
 if __name__ == '__main__':
-    data_dir = r'C:\Users\shiri\Documents\School\faces\Data\VGG-Face2\data\train_mtcnn_aligned'
+    parser = ArgumentParser()
+    parser.add_argument("-data_dir", "--data_dir", dest="data_dir", help="folder with data")
 
-    data_paths_list = load_data(data_dir, instance_num_per_class=1)
+    args = parser.parse_args()
+    data_paths_list = load_data(args.data_dir, instance_num_per_class=1)
     model = get_vgg_model(num_classes=len(data_paths_list))
     rdm = get_rdm(data_paths_list, model)
     plt.imshow(rdm)
